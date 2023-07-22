@@ -1,4 +1,5 @@
 ﻿from fastapi import FastAPI, Depends, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 #from fastapi_jwt_auth import AuthJWT
 #from fastapi_jwt_auth.exceptions import AuthJWTException
 import polars as pl
@@ -7,6 +8,15 @@ import polars as pl
 #SECRET_KEY = "nXCUALjYNh94pwgxRRGkm9HjQutWyCo1hD6shMZRAtQ"
 
 app = FastAPI()
+
+# Add CORS middleware to allow requests from any origin (*)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 #configure JWT
 #@AuthJWT.load_config
 #def get_config():
@@ -67,7 +77,7 @@ async def read_root():
 
 @app.get("/home")
 async def read_root():
-    return {"data": cleaned_df.to_struct("data").to_list()}
+    return {"data": cleaned_df.to_struct("data").to_list(),"desviacion_estandar_df": desviacion_estandar_df.to_struct("data").to_list()}
 ##funtion to hadle autenthication errors
 #@app.exception_handler(AuthJWTException)
 #async def authjwt_exception_handler(request, exc):
