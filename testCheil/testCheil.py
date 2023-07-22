@@ -1,11 +1,14 @@
-﻿from fastapi import FastAPI, Depends, HTTPException
+﻿from fastapi import FastAPI, Header,Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-#from fastapi_jwt_auth import AuthJWT
-#from fastapi_jwt_auth.exceptions import AuthJWTException
+import jwt
+import datetime
 import polars as pl
+
 #Secret key to configure jwt
-#used ssh-keygen -t rsa to generete de key. phrase testcheil
-#SECRET_KEY = "nXCUALjYNh94pwgxRRGkm9HjQutWyCo1hD6shMZRAtQ"
+JWT_SECRET = "secret" 
+JWT_ALGORITHM = "HS256"
+JWT_EXPRID_TIME = 1
+tokenA=""
 
 app = FastAPI()
 
@@ -16,14 +19,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-#configure JWT
-#@AuthJWT.load_config
-#def get_config():
-#    return {
-#        "secret_key": SECRET_KEY,
-#        "algorithm": "HS256"
-#    }
 
 #First
 csv_path = "testCheil/files/vehicle.csv"
@@ -70,37 +65,48 @@ if "compactness" in cleaned_df:
 else:
         print({"error": "Column 'compactness' not found in the DataFrame."})
 
+def secure(token):
+    # if we want to sign/encrypt the JSON object: {"hello": "world"}, we can do it as follows
+    # encoded = jwt.encode({"hello": "world"}, JWT_SECRET, algorithm=JWT_ALGORITHM)
+    decoded_token = jwt.decode(token, JWT_SECRET, algorithms=JWT_ALGORITHM)
+    print("token")
+    print(decoded_token)
+    # this is often used on the client side to encode the user's email address or other properties
+    return decoded_token
+
+
+@app.post("/login")
+def authenticate(username, password):
+    global tokenA
+    if username == "admin" and password == "password":
+        # Create a JWT token with a subject claim "admin" and an expiration time of 1 hour
+        payload = {"sub": "admin", "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=1)}
+        tokenA = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+        return {"message":"Authorized!","token":tokenA}
+    else:
+        return {"message":"You don't have pression to acces, please login","status":"400"}
+@app.post("/logout")
+def logout():
+    global tokenA
+    tokenA=""
+    return {"message":"Logged out!","status":"200"}
 
 @app.get("/")
 async def read_root():
     return {"Hello": "World"}
 
-@app.get("/home")
-async def read_root():
-    return {"data": cleaned_df.to_struct("data").to_list(),"desviacion_estandar_df": desviacion_estandar_df.to_struct("data").to_list()}
-##funtion to hadle autenthication errors
-#@app.exception_handler(AuthJWTException)
-#async def authjwt_exception_handler(request, exc):
-#    return JSONResponse(status_code=exc.status_code, content={"detail": exc.message})
-
-##endpoint to login and generete the token
-#@app.post("/login")
-#async def login(Authorize: AuthJWT = Depends()):
-#    # Aquí puedes implementar la lógica de autenticación de usuario.
-#    # Si el usuario es válido, genera el token y lo retorna en la respuesta.
-
-#    access_token = Authorize.create_access_token(subject="id_del_usuario")
-#    return {"access_token": access_token}
-
-
-##protected endpoint that requieres jwt token
-#@app.get("/protected")
-#async def protected(Authorize: AuthJWT = Depends()):
-#    try:
-#        Authorize.jwt_required()
-#    except AuthJWTException as e:
-#        raise HTTPException(status_code=e.status_code, detail=e.message)
-
-#    # Si se pasa la validación, el usuario está autenticado y puede acceder a esta ruta protegida.
-#    return {"message": "Ruta protegida, el usuario está autenticado."}
-
+@app.get("/getData")
+async def getData(token: str = Header(None)):
+    global tokenA
+    try:
+        # Convertir el token bytes a str
+        token_bytes_str = tokenA.decode('utf-8')
+        print(token,tokenA,(token==token_bytes_str))
+        if(token==token_bytes_str):
+            decoded = secure(token)
+            return {"data": cleaned_df.to_struct("data").to_list(),"desviacion_estandar_df": desviacion_estandar_df.to_struct("data").to_list()}
+        else:
+            return {"message":"Ivalid token","status":"400"}
+    except:
+        return {"message":"Unauthorized Access, please loggin!","status":"404"}
+    raise HTTPException(status_code=404, detail=f"Could not find user with id: {item_id}")
