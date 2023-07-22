@@ -16,8 +16,8 @@ app = FastAPI()
 #    }
 
 #First
-csv_path = "files/vehicle.csv"
-parquet_path = "files/vehicles.parquet"
+csv_path = "testCheil/files/vehicle.csv"
+parquet_path = "testCheil/files/vehicles.parquet"
 # Read file CSV in a DataFrame Polars
 df = pl.read_csv(csv_path)
 # Save DataFrame in format PARQUET
@@ -29,6 +29,7 @@ lazy_df = pl.read_parquet(parquet_path)
 # Realizar la limpieza de datos eliminando registros incompletos
 cleaned_df = lazy_df.drop_nulls()
 # Mostrar el DataFrame resultante
+print("Clened data")
 print(cleaned_df)
 
 
@@ -42,23 +43,31 @@ campos_desviacion_estandar = [
     "scaled_radius_of_gyration.1", "skewness_about", "skewness_about.1",
     "skewness_about.2", "hollows_ratio"
 ]
+ # Ensure that the DataFrame contains the 'compactness' column
+print("before show")
+if "compactness" in cleaned_df:
+        # Calcular la desviación estándar agrupada por el campo "class"
+        print("have data")
+        desviacion_estandar_df = (
+            cleaned_df.groupby("class")
+            .agg(
+                **{campo: pl.col(campo).std() for campo in campos_desviacion_estandar}
+            )
+        )
+        # Mostrar el DataFrame resultante con la desviación estándar
+        print(desviacion_estandar_df)
+        #return {"data": desviacion_estandar_df.to_list()}
+else:
+        print({"error": "Column 'compactness' not found in the DataFrame."})
 
-# Calcular la desviación estándar agrupada por el campo "class"
-desviacion_estandar_df = (
-    lazy_df.groupby("class")
-    .agg(
-        **{campo: pl.col(campo).std() for campo in campos_desviacion_estandar}
-    )
-)
-
-# Mostrar el DataFrame resultante con la desviación estándar
-print(desviacion_estandar_df)
 
 @app.get("/")
 async def read_root():
     return {"Hello": "World"}
 
-
+@app.get("/home")
+async def read_root():
+    return {"data": cleaned_df.to_struct("data").to_list()}
 ##funtion to hadle autenthication errors
 #@app.exception_handler(AuthJWTException)
 #async def authjwt_exception_handler(request, exc):
