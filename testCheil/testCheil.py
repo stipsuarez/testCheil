@@ -30,7 +30,9 @@ df.write_parquet(parquet_path)
 print(df)
 
 #Second
-lazy_df = pl.read_parquet(parquet_path)
+#lazy_df = pl.read_parquet(parquet_path)
+# Use LazyFrame mode to read data from the parquet file
+lazy_df = pl.scan_parquet(parquet_path)
 # Realizar la limpieza de datos eliminando registros incompletos
 cleaned_df = lazy_df.drop_nulls()
 # Mostrar el DataFrame resultante
@@ -48,8 +50,10 @@ campos_desviacion_estandar = [
     "scaled_radius_of_gyration.1", "skewness_about", "skewness_about.1",
     "skewness_about.2", "hollows_ratio"
 ]
+# Lista de campos para calcular el promedio
+campos_promedio = campos_desviacion_estandar
  # Ensure that the DataFrame contains the 'compactness' column
-print("before show")
+
 if "compactness" in cleaned_df:
         # Calcular la desviación estándar agrupada por el campo "class"
         print("have data")
@@ -59,11 +63,30 @@ if "compactness" in cleaned_df:
                 **{campo: pl.col(campo).std() for campo in campos_desviacion_estandar}
             )
         )
+
+
+        # Calcular el promedio agrupado por el campo "class"
+        promedio_df = (
+            cleaned_df.groupby("class")
+            .agg(
+                **{campo: pl.col(campo).mean() for campo in campos_promedio}
+             )
+        )
         # Mostrar el DataFrame resultante con la desviación estándar
-        print(desviacion_estandar_df)
+        print(desviacion_estandar_df, promedio_df,"promedio_df",promedio_df)
         #return {"data": desviacion_estandar_df.to_list()}
 else:
         print({"error": "Column 'compactness' not found in the DataFrame."})
+
+# Función para calcular el promedio agrupado por el campo "class" para un campo específico
+def calcular_promedio_por_campo(dfF, campo):
+ print("calcular p",dfF,campo)
+ promedio_dfR = (
+     df.groupby("class")
+     .agg({campo: pl.col(campo).mean()})
+     )
+ print("Before calcular p",campo)
+ return promedio_dfR
 
 def secure(token):
     # if we want to sign/encrypt the JSON object: {"hello": "world"}, we can do it as follows
@@ -97,16 +120,30 @@ async def read_root():
 
 @app.get("/getData")
 async def getData(token: str = Header(None)):
-    global tokenA
+    global tokenA, cleaned_df
     try:
         # Convertir el token bytes a str
         token_bytes_str = tokenA.decode('utf-8')
-        print(token,tokenA,(token==token_bytes_str))
-        if(token==token_bytes_str):
+        print(token, tokenA, (token == token_bytes_str))
+       
+        
+        print("DAtas")
+
+        if token == token_bytes_str:
             decoded = secure(token)
-            return {"data": cleaned_df.to_struct("data").to_list(),"desviacion_estandar_df": desviacion_estandar_df.to_struct("data").to_list()}
+            # Execute the query plan and get the result
+            cleaned_df_result = cleaned_df.collect()
+            desviacion_estandar_df_result = desviacion_estandar_df.collect()
+            promedio_df_result = promedio_df.collect()
+            print("promedio_df_result",cleaned_df.collect())
+             # Convert PyDataFrame to list of dictionaries for JSON serialization
+            cleaned_data = cleaned_df_result.to_struct("data").to_list()
+            desviacion_estandar_data = desviacion_estandar_df_result.to_struct("data").to_list()
+            promedio_data = promedio_df_result.to_struct("data").to_list()
+            print("Data",promedio_data)
+            return {"data": cleaned_data, "desviacion_estandar_df": desviacion_estandar_data,"promedio_df":promedio_data}
         else:
-            return {"message":"Ivalid token","status":"400"}
+            return {"message": "Invalid token", "status": "400"}
     except:
-        return {"message":"Unauthorized Access, please loggin!","status":"404"}
-    raise HTTPException(status_code=404, detail=f"Could not find user with id: {item_id}")
+        return {"message": "Unauthorized Access, please login!", "status": "404"}
+#raise HTTPException(status_code=404, detail=f"Could not find user with the token")
