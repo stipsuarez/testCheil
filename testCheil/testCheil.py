@@ -27,22 +27,18 @@ parquet_path = "testCheil/files/vehicles.parquet"
 df = pl.read_csv(csv_path)
 # Save DataFrame in format PARQUET
 df.write_parquet(parquet_path)
-print(df)
 
 #Second
-#lazy_df = pl.read_parquet(parquet_path)
 # Use LazyFrame mode to read data from the parquet file
 lazy_df = pl.scan_parquet(parquet_path)
-# Realizar la limpieza de datos eliminando registros incompletos
+# clean incomplete 
 cleaned_df = lazy_df.drop_nulls()
 # Mostrar el DataFrame resultante
-print("Clened data")
-print(cleaned_df)
 
 
 #Third
-# Lista de campos para calcular la desviación estándar
-campos_desviacion_estandar = [
+# List of fields to calculate standard deviation
+field_deviation_std = [
     "compactness", "circularity", "distance_circularity", "radius_ratio",
     "pr.axis_aspect_ratio", "max.length_aspect_ratio", "scatter_ratio",
     "elongatedness", "pr.axis_rectangularity", "max.length_rectangularity",
@@ -50,50 +46,32 @@ campos_desviacion_estandar = [
     "scaled_radius_of_gyration.1", "skewness_about", "skewness_about.1",
     "skewness_about.2", "hollows_ratio"
 ]
-# Lista de campos para calcular el promedio
-campos_promedio = campos_desviacion_estandar
+# List field to calculate average
+campos_promedio = field_deviation_std
  # Ensure that the DataFrame contains the 'compactness' column
 
 if "compactness" in cleaned_df:
-        # Calcular la desviación estándar agrupada por el campo "class"
-        print("have data")
+        # Calcalete standar  desvietion grupping fields by "class" column
         desviacion_estandar_df = (
             cleaned_df.groupby("class")
-            .agg(
-                **{campo: pl.col(campo).std() for campo in campos_desviacion_estandar}
+            .agg(   #Agregation function to loop field_deviation_std 
+                **{campo: pl.col(campo).std() for campo in field_deviation_std}  #calculate the deviation standar for each field
             )
         )
 
-
-        # Calcular el promedio agrupado por el campo "class"
+        # Calculate the average grupping by "class" column
         promedio_df = (
             cleaned_df.groupby("class")
             .agg(
                 **{campo: pl.col(campo).mean() for campo in campos_promedio}
              )
         )
-        # Mostrar el DataFrame resultante con la desviación estándar
-        print(desviacion_estandar_df, promedio_df,"promedio_df",promedio_df)
-        #return {"data": desviacion_estandar_df.to_list()}
 else:
         print({"error": "Column 'compactness' not found in the DataFrame."})
 
-# Función para calcular el promedio agrupado por el campo "class" para un campo específico
-def calcular_promedio_por_campo(dfF, campo):
- print("calcular p",dfF,campo)
- promedio_dfR = (
-     df.groupby("class")
-     .agg({campo: pl.col(campo).mean()})
-     )
- print("Before calcular p",campo)
- return promedio_dfR
-
+#decode token to get claims
 def secure(token):
-    # if we want to sign/encrypt the JSON object: {"hello": "world"}, we can do it as follows
-    # encoded = jwt.encode({"hello": "world"}, JWT_SECRET, algorithm=JWT_ALGORITHM)
     decoded_token = jwt.decode(token, JWT_SECRET, algorithms=JWT_ALGORITHM)
-    print("token")
-    print(decoded_token)
     # this is often used on the client side to encode the user's email address or other properties
     return decoded_token
 
@@ -108,15 +86,12 @@ def authenticate(username, password):
         return {"message":"Authorized!","token":tokenA}
     else:
         return {"message":"You don't have pression to acces, please login","status":"400"}
+
 @app.post("/logout")
 def logout():
     global tokenA
     tokenA=""
     return {"message":"Logged out!","status":"200"}
-
-@app.get("/")
-async def read_root():
-    return {"Hello": "World"}
 
 @app.get("/getData")
 async def getData(token: str = Header(None)):
@@ -124,26 +99,19 @@ async def getData(token: str = Header(None)):
     try:
         # Convertir el token bytes a str
         token_bytes_str = tokenA.decode('utf-8')
-        print(token, tokenA, (token == token_bytes_str))
-       
-        
-        print("DAtas")
 
         if token == token_bytes_str:
             decoded = secure(token)
-            # Execute the query plan and get the result
-            cleaned_df_result = cleaned_df.collect()
+            # Execute the query plan and get the result using lazyFrames of polars
+            cleaned_df_result = cleaned_df.collect() 
             desviacion_estandar_df_result = desviacion_estandar_df.collect()
             promedio_df_result = promedio_df.collect()
-            print("promedio_df_result",cleaned_df.collect())
              # Convert PyDataFrame to list of dictionaries for JSON serialization
             cleaned_data = cleaned_df_result.to_struct("data").to_list()
             desviacion_estandar_data = desviacion_estandar_df_result.to_struct("data").to_list()
             promedio_data = promedio_df_result.to_struct("data").to_list()
-            print("Data",promedio_data)
             return {"data": cleaned_data, "desviacion_estandar_df": desviacion_estandar_data,"promedio_df":promedio_data}
         else:
             return {"message": "Invalid token", "status": "400"}
     except:
         return {"message": "Unauthorized Access, please login!", "status": "404"}
-#raise HTTPException(status_code=404, detail=f"Could not find user with the token")
